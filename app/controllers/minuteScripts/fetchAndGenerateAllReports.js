@@ -4,7 +4,7 @@ var _ = require('underscore');
 var moment =  require('moment') ;
 // import moment from 'moment';
 var mongoUrl = conFig.mongourl;//"mongodb://localhost:27017/smart_qa"; //config.mongourl;
-var db = mongo(mongoUrl, ["smtCompaniesDivison","smtCompaniesUsers","smtCompanyLocations","users",
+var db = mongo(mongoUrl, ["smtCompanies","smtCompaniesDivison","smtCompaniesUsers","smtCompanyLocations","users",
     "smtReportsGeneration","smtReportsTemplateAlias","smtFormTemplateCompanyAlias",
     "smtReportsTemplateAlias","smtReportsTemplateCompanyAlias","smtReportDetails",
     "smtNotifications","smtCompanyDepartments","smtReportTransactions"]);
@@ -27,6 +27,7 @@ var featchAllReports = function(){
                                     var expected = moment(generationTime).format("MM-DD-YYYY h:mm A");
                                     var current = moment().format("MM-DD-YYYY h:mm A");
                                     if(expected === current){
+                                        console.log("time matched")
                                         var type = autoObj.type;
                                         generateReportsEnterForUser(current, reportAlias.reportName, reportAlias.reportCode, type, reportAlias.hierarchyCode, reportAlias.companyId, reportAlias.companyDivisionId, reportAlias._id, reportAlias.hierarchyApproveBy, reportAlias.hierarchyViewedBy)
                                     }
@@ -112,7 +113,7 @@ function generateReportsEnterForUser(current, reportName, reportCode, type, leve
                         var approveBy = getLocationParentLocations(u, approvedByLevels, true);
                         var viewedBy = getLocationParentLocations(u, viewedByLevel, false);
                         var email = u.emails[0].address;
-                        db.smtCompanies.findone({_id: companyId}, function(err, company){
+                        db.smtCompanies.findOne({_id: companyId}, function(err, company){
                             var autoSubmitByUser;
                             var autoApprovedByManager;
                             if (smtReportsTemplateAlias) {

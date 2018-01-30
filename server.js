@@ -7,7 +7,7 @@ cron.schedule('*/1 * * * *', function(){
     var shell = require('./child_helper');
 
     var commandList = [
-        "node script1.js",
+        "node cronNodeScript.js",
         // "npm run paramScript -- PeterGood"
     ]
     
