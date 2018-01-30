@@ -5,7 +5,7 @@ cron.schedule('*/1 * * * *', function(){
     var shell = require('./child_helper');
 
     var commandList = [
-        //"node fetchAndGenerateAllReports.js",
+       // "node fetchAndGenerateAllReports.js",
         // "node sendNotificationToFillForm.js",
 		// "node autoSubmitReports.js",
 		"node sendEventNotification.js",
