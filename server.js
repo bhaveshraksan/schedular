@@ -1,10 +1,11 @@
 const express = require('express')
 const app = express()
 var cron = require('node-cron');
+//var cronNodeScript = require('./scheduler/cronNodeScript');
 
 //exceute every 1 min
 cron.schedule('*/1 * * * *', function(){
-    var shell = require('./child_helper');
+    var shell = require("./child_helper");
 
     var commandList = [
         "node cronNodeScript.js",
