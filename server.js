@@ -3,8 +3,8 @@ const app = express()
 var cron = require('node-cron');
 //var cronNodeScript = require('./scheduler/cronNodeScript');
 
-//exceute every 1 min
-cron.schedule('*/1 * * * *', function(){
+// //exceute every 1 min
+var cronJob = function(){
     var shell = require("./child_helper");
 
     var commandList = [
@@ -16,7 +16,8 @@ cron.schedule('*/1 * * * *', function(){
        console.log('executed 1 commands in a row'); 
         console.log('done');
     });
-});
+};
 
+cronJob();
 
 app.listen(8000, () => console.log('Example app listening on port 8000!'))

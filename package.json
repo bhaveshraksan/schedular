@@ -25,6 +25,7 @@
     "isobject": "^3.0.1",
     "lodash": "^4.17.4",
     "moment": "^2.20.1",
+    "mongo-fast-join": "0.0.11",
     "mongojs": "^2.4.0",
     "node-cron": "^1.2.1",
     "then-mongo": "^3.0.1",

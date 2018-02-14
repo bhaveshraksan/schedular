@@ -29,11 +29,8 @@ var featchAllReports = function(){
                                     var expected = moment(generationTime).format("MM-DD-YYYY h:mm A");
                                     var current = moment().format("MM-DD-YYYY h:mm A");
                                     if(expected === current){
-                                        console.log("time matched")
                                         var type = autoObj.type;
-                                        generateReportsEnterForUser(current, reportAlias.reportName, reportAlias.reportCode, type, reportAlias.hierarchyCode, reportAlias.companyId, reportAlias.companyDivisionId, reportAlias._id, reportAlias.hierarchyApproveBy, reportAlias.hierarchyViewedBy)
-                                    }else{
-                                        console.log("Not matched");
+                                        generateReportsEnterForUser(current, reportAlias.reportName, reportAlias.reportCode, type, reportAlias.hierarchyCode, reportAlias.companyId, reportAlias.companyDivisionId, reportAlias._id, reportAlias.hierarchyApproveBy, reportAlias.hierarchyViewedBy);
                                     }
                                 }   
                             });    
@@ -170,6 +167,7 @@ function generateReportsEnterForUser(current, reportName, reportCode, type, leve
                                         autoApprovedByManager: autoApprovedByManager
                                     });
                                     db.smtReportDetails.insert(reportObj, function(err, reportInsertedDetailsId){
+                                        console.log(reportInsertedDetailsId);
                                         reportsGenerated.push(reportInsertedDetailsId);
                                         if (company && company.basicInfo && company.basicInfo.countryId) {
                                             var notificationObj = {};
@@ -293,11 +291,13 @@ function updateReportsData(reportsUpdateQuery,userId, cronRecId){
     var updatedReports = [];
     var updateRepsQuery = {};
 
+    //console.log(reportsUpdateQuery);
+
     if(reportsUpdateQuery){
        updateRepsQuery = _.extend({"updateCronId": {$nin:[cronRecId]}},reportsUpdateQuery);
     }
     db.smtReportDetails.find(updateRepsQuery,{sort:{"audit.createdAt":-1}}, function(err, reportsDt){
-        console.log(err);
+        //console.log(err);
         _.each(reportsDt,(reportRec)=>{
              if(reportRec && reportRec.reportCode && reportRec.rangeType){
                  var reportTabName = _.findWhere(constants.SmtReportsTabNames, {reportCode: reportRec.reportCode}).tabName

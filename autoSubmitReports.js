@@ -4,11 +4,13 @@ var _ = require('underscore');
 var moment =  require('moment');
 var bson = require('bson');
 var isObject = require('isobject');
+var utils = require('./commonJS/saveNotification');
 
 var mongoUrl = conFig.mongourl;//"mongodb://localhost:27017/smart_qa"; //config.mongourl;
 var db = mongo(mongoUrl,["smtReportsTemplateAlias","smtReportsTemplateCompanyAlias",
 						  "smtReportDetails","smtCompanies","users","smtCompanyLocations",
-						  "smtCustomerAppointmentsMeetings","smtCustomerAppointments"]);
+						  "smtCustomerAppointmentsMeetings","smtCustomerAppointments",
+						  "smtMRTripDetails","smtCustomerAppointmentsSummary","smtReportTransactions"]);
 
 var autoSubmitReports = function(){
 	db.smtReportsTemplateAlias.find({"status": "ASSIGNED"}, function(err, reportAlias){
@@ -36,8 +38,8 @@ var autoSubmitReports = function(){
 		                        var reportDate = moment().add((-1 * days), "days").toDate();
 		                        var firstDay = moment(reportDate).startOf("day").toDate().getTime();
 		                        var reportDetailDate = moment(report.audit.createdAt).startOf("day").toDate().getTime();
-		                        //if (expected === current && reportDetailDate === firstDay && report && report.approveBy && report.approveBy.length > 0) {
-		                        	//console.log("Auto Approval ReportId", report._id);
+		                       if (expected === current && reportDetailDate === firstDay && report && report.approveBy && report.approveBy.length > 0) {
+		                        	console.log("Auto Approval ReportId", report._id);
 		                        	var statusAudit = {};
 		                            statusAudit.userId = "SYSTEM";
 		                            statusAudit.status = "SUBMITTED";
@@ -63,10 +65,10 @@ var autoSubmitReports = function(){
 			                            notificationObj.baseId = report._id;
 			                            var from = "SYSTEM";
 			                            var approveBy = report.approveBy;
-			                            var to = [];
 			                            db.users.findOne({_id: report.userId}, function(err, user){
 			                            	if (user && user.profile && user.profile.locationId) {
 			                            		var approveObj = _.findWhere(approveBy, {locationId: user.profile.immediateParentId});
+			                            		var to = [];
 			                            		if (report && report.approveBy && report.approveBy.length > 0) {
 			                            			 _.each(report.approveBy, function (value, index) {
 		                            			 		if (user && user.profile && user.profile.locationId) {
@@ -80,7 +82,7 @@ var autoSubmitReports = function(){
 						                                                    });
 						                                                    to = to.concat(hierarchyUsers);
 		                            			 						});
-		                            			 					}		
+		                            			 					}
 		                            			 				}	
 		                            			 			});
 		                            			 		}	
@@ -89,17 +91,145 @@ var autoSubmitReports = function(){
 			                            		to = _.uniq(to);
 			                            		if (report.reportCode === "APPOINTMENTS") {
 				                                    endDayAppointments(report._id, "SYSTEM");
-				                                    //endDayAppointments(report._id);
 				                                }
+				                                utils.saveNotification(notificationObj, from, to);
+				                                db.smtReportDetails.update({_id: report._id}, {
+				                                    $set: {
+				                                        statusAudit: report.statusAudit,
+				                                        status: report.status
+				                                    }
+				                                }, function(err, doc){});
+				                                const date = new Date();
+				                                
+				                                if (approveBy && approveBy[0]) {
+				                                    approveBy[0].status = "SUBMITTED";
+				                                    approveBy[0].receivedAt = date;
+				                                }
+				                                approveBy.push({
+				                                    locationId: "SYSTEM",
+				                                    status: "SUBMITTED",
+				                                    hierarchyCode: "SYSTEM",
+				                                    receivedAt: date
+				                                });
+				                                db.smtReportTransactions.update({
+				                                	 _id: report.transactionId,
+				                                }, {$set: {toUserDetails: approveBy, overallReportStatus: "SUBMITTED"}
+				                                }, function(err, doc){})
 			                            	}	
 			                            });
 		                            });
-		                        // }else{
-		                        // 	console.log('not match');
-		                        // }		
+		                        }		
 		                	}	
-		                }	
-					});	
+		                }
+					});
+					db.smtReportDetails.find({
+						companyId: repo.companyId,
+		                companyDivisionId: repo.companyDivisionId,
+		                reportCode: repo.reportCode,
+		                hierarchyId: repo.hierarchyCode,
+		                status: {$nin: ["DRAFT"]},
+		                statusAudit: {$elemMatch: {status: {$in: ["SUBMITTED", "APPROVED"]}}},
+		                "approveBy.status": {$in: ["DRAFT"]}
+					}, function(err, submittedReports){
+						_.each(submittedReports, function (report) {
+							if (report && report.autoApprovedByManager) {
+                    			if (report.autoApprovedByManager.value) {
+                    				var days;
+			                        var time;
+			                        var reportTime;
+			                        var expected;
+			                        days = report.autoApprovedByManager.noOfDays || 0;
+			                        time = report.autoApprovedByManager.time || "00:00 AM";
+			                        reportTime = moment(time, "h:mm A", true).toDate();
+			                        expected = moment(reportTime).format("MM-DD-YYYY h:mm A");
+			                        var submitDate = moment().add((-1 * days), "days").toDate();
+			                        var startDay = moment(submitDate).startOf("day").toDate().getTime();
+			                        var canApproveReport = false;
+
+			                        _.each(report.statusAudit, function (obj) {
+			                            if (obj && (obj.status == "SUBMITTED" || obj.status == "APPROVED" ) && obj.createdOn) {
+			                                if (startDay == moment(obj.createdOn).startOf("day").toDate().getTime()) {
+			                                    canApproveReport = true;
+			                                }
+			                            }
+			                        });
+			                        if (expected == current && canApproveReport) {
+			                        	console.log("Auto submitted manager reportId", report._id);
+			                        	if (report.approveBy && report.approveBy.length > 0) {
+			                        		report.statusAudit.sort(function (a, b) {
+			                                    return b.createdOn - a.createdOn
+			                                });
+			                                if (report.status == "SUBMITTED" || report.statusAudit[0].status == "SUBMITTED") {
+			                                    report.approveBy[0].status = "APPROVED"
+
+			                                } else if (report.status == "APPROVED" && report.statusAudit[0].status == "APPROVED") {
+			                                    var index = report.approveBy.findIndex(function (d) {
+			                                        if (d.status == "DRAFT") {
+			                                            return d
+			                                        }
+			                                    });
+			                                    if (index >= 0) {
+			                                        report.approveBy[index].status = "APPROVED"
+			                                    }
+			                                }
+			                                var statusAudit = {};
+			                                statusAudit.userId = "SYSTEM";
+			                                statusAudit.status = "APPROVED";
+			                                statusAudit.username = "SYSTEM";
+			                                statusAudit.createdOn = new Date();
+			                                report.statusAudit.push(statusAudit);
+			                                db.smtCompanies.findOne({_id: report.companyId}, function(err, company){
+			                                	 //send the notifiction to user about system approval
+				                                var notificationObj = {};
+				                                notificationObj.companyId = report.companyId;
+				                                notificationObj.companyDivisionId = report.companyDivisionId;
+				                                notificationObj.countryId = company.basicInfo.countryId;
+				                                notificationObj.type = "ASM-REPORT-APPROVED";
+				                                notificationObj.payLoad = {
+				                                    "REPORT": repo.reportCode,
+				                                    "CREATEDAT": moment(new Date()).format("DD MMM"),
+				                                    "CREATEDDATE": moment(repo.audit.createdAt).toDate(),
+				                                    "VERSION": "1.1"
+				                                }
+				                                notificationObj.baseId = report._id;
+				                                notificationObj.isActive = true;
+				                                var from = "SYSTEM";
+				                                var to = [report.userId];
+				                                utils.saveNotification(notificationObj, from, to);
+				                                db.smtReportDetails.update({_id: report._id}, {
+				                                    $set: {
+				                                        statusAudit: report.statusAudit,
+				                                        status: "APPROVED",
+				                                        approveBy: report.approveBy
+				                                    }
+				                                }, function(err, doc){});
+				                                const date = new Date();
+				                                let toUserDetails = report.approveBy.map(obj => {
+				                                    obj.status = "APPROVED";
+				                                    obj.respondedAt = date;
+				                                    return obj;
+				                                });
+				                                toUserDetails.push({
+				                                    locationId: "SYSTEM",
+				                                    hierarchyCode: "SYSTEM",
+				                                    respondedAt: date,
+				                                    status: "APPROVED"
+				                                });
+				                                db.smtReportTransactions.update({reportDetailsId: report._id}, {
+				                                    $set: {
+				                                        toUserDetails: toUserDetails,
+				                                        overallRequestStatus: "CLOSED",
+				                                        overallReportStatus: "APPROVED",
+				                                        overallRequestPercentage: 100
+				                                    }
+				                                }, function(err, doc){});
+			                                });
+			                        	}	
+			                        }
+                    			}
+                    		}	
+						});	
+					});
 				});
 			});
 		});	
@@ -109,7 +239,6 @@ var autoSubmitReports = function(){
 
 function endDayAppointments(reportId,createdBy){
 	db.smtReportDetails.findOne({_id: reportId}, function(err, report){
-		console.log(report.userId);
 		if(report.audit){
 	        var reportDate = report.audit.createdAt;
 	        var startOfDay = moment(reportDate).startOf("day").toDate();
@@ -118,14 +247,42 @@ function endDayAppointments(reportId,createdBy){
 	    var currentDate = new Date();
 	    updateUnAttendedAppointment(reportDate, report.userId);
 	    var completedStatus = ['END', 'SUMMARY-UPDATED', 'REPORT-SUBMITTED'];
-	    //console.log('start day'+startOfDay);
-	    //console.log(endOfDay);
 	    db.smtCustomerAppointments.find({
 	    	salesOfficerId: report.userId,
 	        appointmentStatus: {$in: completedStatus},
 	        appointmentDate: {$gte: startOfDay, $lte: endOfDay}
 	    }, function(err, completedAppointments){
-	    	//console.log(completedAppointments);
+	    	var appointmentIds = completedAppointments	.map(function (d) {
+		        return d._id
+		    });
+		    db.smtCustomerAppointments.update({_id: {$in: appointmentIds}},{$set: {summarySubmitted:true}},{multi: true},function(err, doc){});
+		    db.smtCustomerAppointmentsSummary.update({appointmentId: {$in: appointmentIds}}, {$set: {summarySubmitted: true}},{multi: true}, function(err, doc){});
+		    db.smtMRTripDetails.findOne({
+		    	mrId: report.userId,
+        		tripStartTime: {$gte: startOfDay, $lte: endOfDay}
+		    }, function(err, mrDetails){
+		    	if (mrDetails && mrDetails._id) {
+		    		var audit= {};
+			        audit.updatedAt = new Date();
+			        audit.updatedBy = createdBy || report.userId;
+			        db.smtMRTripDetails.update({
+			        	mrId: report.userId,
+			        	tripStartTime: {
+			                $gte: startOfDay,
+			                $lte: endOfDay
+			            }
+			        },{$set: {tripEndTime: currentDate,audit:audit}}, function(err, doc){});
+		    	}else {
+		    		var tripDetails = {};
+			        tripDetails.mrId = report.userId;
+			        tripDetails.tripStartTime = reportDate;
+			        tripDetails.tripEndTime = currentDate;
+			        tripDetails.audit = {};
+			        tripDetails.audit.createdAt = new Date();
+			        tripDetails.audit.createdBy = createdBy || report.userId;
+			        db.smtMRTripDetails.insert(tripDetails, function(err, result){});
+		    	}	
+		    });
 	    });
 	});
 }
