@@ -15,8 +15,8 @@ var workForTheMonthlyAllowance = function() {
 	db.smtCompanies.find({isActive: true}, function(err, companiesList){
 		_.each(companiesList, function (company) {
 			let companyId = company._id;
-			if(moment().startOf('day').isSame(moment().startOf('month'))){
-				console.log("it is workForTheMonthlyAllowance")
+			//if(moment().startOf('day').isSame(moment().startOf('month'))){
+				//console.log("it is workForTheMonthlyAllowance")
                 var dateRange = {
                     startDate: moment().add(-1, 'day').startOf('month').toDate(),
                     endDate: moment().add(-1, 'day').endOf('month').toDate()
@@ -25,14 +25,17 @@ var workForTheMonthlyAllowance = function() {
                     'additionalSettings.frequency': 'MONTHLY',
                     companyId: companyId
                 }
-                var userIds = commonjs.getTheUserHavingAppointmentInThisDateRange(dateRange, companyId);
-                db.smtAllowanceTypesAlias.find(query, function(err, monthlyAllowances){
-                	var monthAllIds = _.map(monthlyAllowances, function (all) {
-                    	return all._id
-	                });
-	                commonjs.getAllowanceUsersBaseStation(userIds, monthAllIds, dateRange, companyId, "MONTHLY");
+                commonjs.getTheUserHavingAppointmentInThisDateRange(dateRange, companyId, function(userIds){
+                    db.smtAllowanceTypesAlias.find(query, {_id: 1}, function(err, monthlyAllowances){
+                        var monthAllIds = _.map(monthlyAllowances, function (all) {
+                            return all._id
+                        }); 
+                        commonjs.getAllowanceUsersBaseStation(userIds, monthAllIds, dateRange, companyId, "MONTHLY", function(result){
+                            console.log(result);
+                        });   
+                    });    
                 });
-			}
+			//}
 		});	
 	});
 }

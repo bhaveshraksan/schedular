@@ -13,7 +13,7 @@ var db = mongo(mongoUrl,["smtCompanies","smtAllowanceTypesAlias","smtCustomerApp
 
 
 
-function getTheUserHavingAppointmentInThisDateRange(dateRange, companyId){
+function getTheUserHavingAppointmentInThisDateRange(dateRange, companyId, callback){
 	var appointmentQuery = {
         companyId: companyId,
         status: 'APPROVED',
@@ -34,111 +34,126 @@ function getTheUserHavingAppointmentInThisDateRange(dateRange, companyId){
 	        var salesOfficerIdsUserMeeting = _.map(meetings, function (meeting) {
 	            return meeting.salesOfficerId
 	        });
-	        var salesOfficerIds = _.union(salesOfficerIdsUserAppointment, salesOfficerIdsUserMeeting);
-	        return salesOfficerIds;
+	        salesOfficerIds = _.union(salesOfficerIdsUserAppointment, salesOfficerIdsUserMeeting);
+            callback(salesOfficerIds);
+        });
+    });
+
+}
+
+function getAllowanceUsersBaseStation(userIds, allowances, dateRange, companyId, frequencyType, callback) {
+    _.each(userIds, function (userId) {
+        allowanceAsPerUserUserId(userId, allowances, function(allowanceListObj){
+            let newAllowance = [];
+            _.each(allowanceListObj, function (obj) {
+                var otherDataObj = {};
+                otherDataObj.allowanceTypeId = obj.allowanceTypeId;
+                otherDataObj.value = obj.value;
+                otherDataObj.allowedStatus = "STANDARD";
+                otherDataObj.allowanceTypeCode = obj.allowanceTypeId;
+                otherDataObj.frequencyType = frequencyType;
+                otherDataObj.audit = {};
+                otherDataObj.audit.createdBy = 'SYSTEM'; /// its important
+                otherDataObj.audit.createdOn = new Date();
+                newAllowance.push(otherDataObj);
+                if (newAllowance && newAllowance.length > 0) {
+                    var startOfDay = moment(dateRange.endDate).startOf('day').toDate();
+                    var endOfDay = moment(dateRange.endDate).endOf('day').toDate();
+                    var options = {
+                            companyId: companyId,
+                            salesOfficerId: userId,
+                            reportDate: {$gte: startOfDay, $lte: endOfDay}
+                        };
+                        //console.log(options);
+                    db.smtMrDayReports.findOne(options, function(err, smtMrDayReports){
+                        if (smtMrDayReports && smtMrDayReports.reportValues) {
+                            var index = smtMrDayReports.reportValues.findIndex(function (r) {
+                                if(r.userId === userId){
+                                   return r; 
+                                }
+                            });
+                            let reportValues = [];
+                            if (index >= 0) {
+                                reportValues = smtMrDayReports.reportValues;
+                                var newAllowanceValue = reportValues[index].allowanceValues;
+                                newAllowanceValue = newAllowanceValue.concat(newAllowance);
+                                reportValues[index].allowanceValues = newAllowanceValue
+                                reportValues[index].audit = _.extend(reportValues[index].audit, {
+                                    updatedBy: 'SYSTEM',
+                                    updatedOn: new Date()
+                                });
+                            }else{
+                                var audit = {};
+                                audit.createdBy = 'SYSTEM'; /// its important
+                                audit.createdOn = new Date();
+                                reportValues = smtMrDayReports.reportValues;
+                                reportValues.push({
+                                    userId: userId,
+                                    audit: audit,
+                                    allowanceValues: newAllowance
+                                });    
+                            }
+                           db.smtMrDayReports.update({_id: smtMrDayReports._id}, {$set: {reportValues: reportValues}}, function(err, doc){
+                                if(err == null){ 
+                                    callback("updated done:"+  smtMrDayReports._id);
+                                }
+                           });    
+                        }else{
+                            var reportObj = {};
+                            db.users.findOne({_id: userId}, function(err, userInfo){
+                                reportObj.companyId = userInfo.profile.companyId;
+                                reportObj.companyDivisionId = userInfo.profile.companyDivisionId;
+                                reportObj.salesOfficerId = userId;
+                                reportObj.reportDate = dateRange.endDate;
+                                var audit = {};
+                                audit.createdBy = 'SYSTEM'; /// its important
+                                audit.createdOn = new Date();
+                                reportObj.reportValues = [];
+                                reportObj.reportValues.push({userId: userId, audit: audit, allowanceValues: newAllowance});
+                                db.smtMrDayReports.insert(reportObj, function(err, doc){
+                                    if(err == null){ 
+                                        callback("inserted done");
+                                    }
+                                });
+                            });
+                        }    
+                    });    
+                }    
+            });    
         });
     });
 }
 
-function getAllowanceUsersBaseStation(userIds, allowances, dateRange, companyId, frequencyType) {
-    _.each(userIds, function (userId) {
-        let allowanceListObj = allowanceAsPerUserUserId(userId, allowances);
-        let newAllowance = []
-        _.each(allowanceListObj, function (obj) {
-            var otherDataObj = {};
-            otherDataObj.allowanceTypeId = obj.allowanceTypeId;
-            otherDataObj.value = obj.value;
-            otherDataObj.allowedStatus = "STANDARD";
-            otherDataObj.allowanceTypeCode = obj.allowanceTypeId;
-            otherDataObj.frequencyType = frequencyType;
-            otherDataObj.audit = {};
-            otherDataObj.audit.createdBy = 'SYSTEM'; /// its important
-            otherDataObj.audit.createdOn = new Date();
-            newAllowance.push(otherDataObj);
-            if (newAllowance && newAllowance.length > 0) {
-                var startOfDay = moment(dateRange.endDate).startOf('day').toDate();
-                var endOfDay = moment(dateRange.endDate).endOf('day').toDate();
-                db.smtMrDayReports.findOne({
-                    companyId: companyId,
-                    salesOfficerId: userId,
-                    reportDate: {$gte: startOfDay, $lte: endOfDay}
-                }, function(err, smtMrDayReports){
-                    if (smtMrDayReports && smtMrDayReports.reportValues) {
-                        var index = smtMrDayReports.reportValues.findIndex(function (r) {
-                            if (r.userId === userId)
-                            return r;
-                        });
-                        let reportValues = [];
-                        if (index >= 0) {
-                            reportValues = smtMrDayReports.reportValues;
-                            var newAllowanceValue = reportValues[index].allowanceValues;
-                            newAllowanceValue = newAllowanceValue.concat(newAllowance);
-                            reportValues[index].allowanceValues = newAllowanceValue
-                            reportValues[index].audit = _.extend(reportValues[index].audit, {
-                                updatedBy: 'SYSTEM',
-                                updatedOn: new Date()
-                            });
-                        }else{
-                            var audit = {};
-                            audit.createdBy = 'SYSTEM'; /// its important
-                            audit.createdOn = new Date();
-                            reportValues = smtMrDayReports.reportValues;
-                            reportValues.push({
-                                userId: userId,
-                                audit: audit,
-                                allowanceValues: newAllowance
-                            });
-                        }
-                        db.smtMrDayReports.update({_id: smtMrDayReports._id}, {$set: {reportValues: reportValues}}, function(err, doc){});
-                    }else{
-                        var reportObj = {};
-                        var userInfo = Meteor.users.findOne({_id: userId});
-                        reportObj.companyId = userInfo.profile.companyId;
-                        reportObj.companyDivisionId = userInfo.profile.companyDivisionId;
-                        reportObj.salesOfficerId = userId;
-                        reportObj.reportDate = dateRange.endDate;
-                        var audit = {};
-                        audit.createdBy = 'SYSTEM'; /// its important
-                        audit.createdOn = new Date();
-                        reportObj.reportValues = [];
-                        reportObj.reportValues.push({userId: userId, audit: audit, allowanceValues: newAllowance});
-                        db.smtMrDayReports.insert(reportObj, function(err, doc){});
-                    }   
-                });
-            }   
-        }); 
-    });
-    return  
-}
-
-function allowanceAsPerUserUserId(userId, allowances){
+function allowanceAsPerUserUserId(userId, allowances, callback){
     var allowanceListobj = [];
-    var baseStationId = getUserBaseStationId(userId);
-    if (baseStationId && baseStationId !== '') {
-        db.smtCompanyLocations.findOne({_id: baseStationId}, function(err, location){
-            if (location && location.allowanceSettings && location.allowanceSettings.isApplicable) {
-                var allowanceValues = location.allowanceSettings.allowanceValues;
-                if (allowanceValues && allowanceValues.length > 0) {
-                    _.each(allowanceValues, function (allowanceValue) {
-                        if (allowanceValue.isActive) {
-                            _.each(allowanceValue.list, function (list) {
-                                if (list.isActive && allowances.indexOf(list.allowanceTypeId) >= 0) {
-                                    let obj = {};
-                                    obj.value = list.sameStationTravel.value;
-                                    obj.allowanceTypeId = list.allowanceTypeId;
-                                    allowanceListobj.push(obj)
-                                }   
-                            }); 
-                        }   
-                    }); 
-                }   
-            }   
-        })
-    }
-    return allowanceListobj;    
+    getUserBaseStationId(userId, function(baseStationId){
+        if (baseStationId && baseStationId !== '') {
+            db.smtCompanyLocations.findOne({_id: baseStationId}, function(err, location){
+                if (location && location.allowanceSettings && location.allowanceSettings.isApplicable) {
+                    var allowanceValues = location.allowanceSettings.allowanceValues;
+                    if (allowanceValues && allowanceValues.length > 0) {
+                        _.each(allowanceValues, function (allowanceValue) {
+                            if (allowanceValue.isActive) {
+                                _.each(allowanceValue.list, function (list) {
+                                    //console.log(allowances.indexOf(list.allowanceTypeId));
+                                    if (list.isActive && allowances.indexOf(list.allowanceTypeId) >= 0) {
+                                        let obj = {};
+                                        obj.value = list.sameStationTravel.value;
+                                        obj.allowanceTypeId = list.allowanceTypeId;
+                                        allowanceListobj.push(obj);
+                                        callback(allowanceListobj);
+                                    }
+                                });    
+                            }  
+                        });    
+                    }  
+                };    
+            }); 
+        }    
+    });
 }
 
-function getUserBaseStationId(userId) {
+function getUserBaseStationId(userId, callback) {
     if(typeof userId == 'string'){
     }else{
         console.log("userId must be a string");
@@ -154,7 +169,7 @@ function getUserBaseStationId(userId) {
                 }
             }); 
         }
-        return baseStId;
+        callback(baseStId);
     });
 }
 

@@ -19,25 +19,29 @@ var workForTheWeeklyAllowance = function(){
             if (company && company.basicInfo && company.basicInfo.firstWorkingDayOfWeek && company.basicInfo.firstWorkingDayOfWeek !== "") {
                 weekStart = company.basicInfo.firstWorkingDayOfWeek || 'MON';
             }
-           if (moment().startOf('day').format('ddd').toUpperCase() === weekStart) {
+            if (moment().startOf('day').format('ddd').toUpperCase() === weekStart) {
             	var dateRange = {
                     startDate: moment().add(-7, 'day').startOf('day').toDate(),
                     endDate: moment().add(-1, 'day').endOf('day').toDate()
                 }
-                var userIds = commonjs.getTheUserHavingAppointmentInThisDateRange(dateRange, companyId);
-                var query = {
-                    isActive: true,
-                    'additionalSettings.frequency': 'WEEKLY'
-                }
-                db.smtAllowanceTypesAlias.find(query, function(err, weeklyAllowances){
-                	var weekAllIds = _.map(weeklyAllowances, function (all) {
-	                    return all._id
-	                });
-	                commonjs.getAllowanceUsersBaseStation(userIds, weekAllIds, dateRange, companyId, "WEEKLY");
-                });	
+                commonjs.getTheUserHavingAppointmentInThisDateRange(dateRange, companyId, function(userIds){
+                    var query = {
+                        isActive: true,
+                        'additionalSettings.frequency': 'WEEKLY'
+                    }
+                    db.smtAllowanceTypesAlias.find(query, function(err, weeklyAllowances){
+                        var weekAllIds = _.map(weeklyAllowances, function (all) {
+                            return all._id
+                        });
+                        commonjs.getAllowanceUsersBaseStation(userIds, weekAllIds, dateRange, companyId, "WEEKLY", function(result){
+                            console.log(result);
+                        });
+                    });  
+                });
             }
 		});
 	});
 };
+
 
 workForTheWeeklyAllowance();
