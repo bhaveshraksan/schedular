@@ -324,5 +324,6 @@ function updateUnAttendedAppointment(tripDate,soId){
         });
 	}	
 };
-
-autoSubmitReports();
+module.exports = {
+	autoSubmitReports: autoSubmitReports
+}

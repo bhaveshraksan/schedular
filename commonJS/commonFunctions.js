@@ -9,7 +9,8 @@ var util = require('./saveNotification');
 var mongoUrl = conFig.mongourl;//"mongodb://localhost:27017/smart_qa"; //config.mongourl;
 var db = mongo(mongoUrl,["smtCompanies","smtAllowanceTypesAlias","smtCustomerAppointments",
                          "smtCustomerAppointmentsMeetings","smtCompaniesUsers",
-                         "smtCompanyLocations","smtMrDayReports","users"]);
+                         "smtCompanyLocations","smtMrDayReports","users",
+                         "smtReportsGeneration"]);
 
 
 
@@ -173,7 +174,7 @@ function getUserBaseStationId(userId, callback) {
     });
 }
 
-function getCustomerMrIds(stationIds){
+function getCustomerMrIds(stationIds, callback){
     var reqData = {};
     var reqData = {_id: {$in: stationIds}};
     db.smtCompanyLocations.find({
@@ -197,18 +198,19 @@ function getCustomerMrIds(stationIds){
                 "roles.company-group": "LEVEL-1",
                 "profile.locationId": {$in: hqIds}
             }, function(err, companyUsers){
-                return _.map(companyUsers, function (obj) {
+                var ids = _.map(companyUsers, function (obj) {
                     return obj._id;
                 });
+                callback(ids);
             });
         });
     })
 }
 
-function SendNotificationForBirthdayAnn(mrIds, isAnniversary, customerName) {
+function SendNotificationForBirthdayAnn(mrIds, isAnniversary, customerName, callback) {
     if (mrIds && mrIds.length > 0) {
         var notificationObj = {};
-        db.users.findOne(mrIds[0], function(err, user){
+        db.users.findOne({_id: mrIds[0]}, function(err, user){
             notificationObj.companyId = user.profile.companyId;
             notificationObj.companyDivisionId = user.profile.companyDivisionId;
             notificationObj.countryId = user.profile.countryId;
@@ -221,15 +223,44 @@ function SendNotificationForBirthdayAnn(mrIds, isAnniversary, customerName) {
             notificationObj.payLoad = {
                 "CUSTOMER": customerName
             };
-            console.log("Sending " + notificationObj.type + "to " + notificationObj.to);
-            util.saveNotification(notificationObj, notificationObj.from, notificationObj.to);
-        })
+            //console.log(notificationObj);
+            util.saveNotification(notificationObj, notificationObj.from, notificationObj.to, function(result){
+                callback(result);
+            });
+       })
     }    
+}
+
+function generateReportsEnterForUser(current, reportName, reportCode, type, levelCode, companyId, companyDivisionId, reportId, approvedByLevels, viewedByLevel){
+    var gte = current;
+    var lte = current;
+    if (type === "MONTHLY") {
+        gte = moment(current, "MM-DD-YYYY h:mm A").startOf('month').toDate();
+        lte = moment(current, "MM-DD-YYYY h:mm A").endOf('month').toDate()
+    } else if (type === "DAILY") {
+        gte = moment(current, "MM-DD-YYYY h:mm A").startOf('day').toDate();
+        lte = moment(current, "MM-DD-YYYY h:mm A").endOf('day').toDate();
+    } else if (type === "WEEKLY") {
+        gte = moment(current, "MM-DD-YYYY h:mm A").startOf('week').toDate();
+        lte = moment(current, "MM-DD-YYYY h:mm A").endOf('week').toDate()
+    }
+
+    db.smtReportsGeneration.find({
+            reportCode: reportCode,
+            type: type,
+            levelCode: levelCode,
+            companyId: companyId,
+            companyDivisionId: companyDivisionId,
+            "audit.createdAt": {$gte: gte, $lte: lte}
+        }, function(err, alreadyGenerated){
+            console.log(alreadyGenerated);
+        }); 
 }
 
 module.exports = {
   getTheUserHavingAppointmentInThisDateRange: getTheUserHavingAppointmentInThisDateRange,
   getAllowanceUsersBaseStation: getAllowanceUsersBaseStation,
   getCustomerMrIds: getCustomerMrIds,
-  SendNotificationForBirthdayAnn: SendNotificationForBirthdayAnn
+  SendNotificationForBirthdayAnn: SendNotificationForBirthdayAnn,
+  generateReportsEnterForUser: generateReportsEnterForUser
 };

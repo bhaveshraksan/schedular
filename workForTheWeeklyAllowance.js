@@ -43,5 +43,6 @@ var workForTheWeeklyAllowance = function(){
 	});
 };
 
-
-workForTheWeeklyAllowance();
+module.exports = {
+    workForTheWeeklyAllowance : workForTheWeeklyAllowance  
+}

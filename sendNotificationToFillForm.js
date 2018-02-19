@@ -90,6 +90,8 @@ function approveByManager(tempAlId){
         }
 	});
 }
+module.exports = {
+	sendNotificationToFillForm: sendNotificationToFillForm
+}
 
-sendNotificationToFillForm()
 

@@ -39,5 +39,6 @@ var workForTheMonthlyAllowance = function() {
 		});	
 	});
 }
-
-workForTheMonthlyAllowance();
+module.exports = {
+    workForTheMonthlyAllowance: workForTheMonthlyAllowance
+}

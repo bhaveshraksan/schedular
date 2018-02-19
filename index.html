@@ -1,0 +1,44 @@
+<html>
+<head>
+  <title>Express HTML</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap-theme.min.css">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+</head>
+<body>
+  <div style="margin:100px;">
+    <form id="getData">
+    	<input type="text" name="repQuery" id="repQuery" placeholder="repQuery" required/>
+    	<input type="text" name="startDateOfReports" id="startDateOfReports" placeholder="start DateOf Reports" required />
+    	<input type="text" name="endDateOfReports" id="endDateOfReports" placeholder="end DateOf Reports" required />
+    	<input type="text" name="freq" id="freq" placeholder="frequency" required />
+    	<button type="submit" class="btn-submit">GET</button> 
+    </form>
+  </div>
+</body>
+</html>
+<script type="text/javascript">
+	$("#getData").on('submit', (function(e){
+		e.preventDefault();
+		var repQuery = document.getElementById('repQuery').value;
+		var startDateOfReports = document.getElementById('startDateOfReports').value;
+		var endDateOfReports = document.getElementById('endDateOfReports').value;
+		var freq = document.getElementById('freq').value;
+		var data = {repQuery: JSON.parse(repQuery),
+				   startDateOfReports: startDateOfReports,
+				   endDateOfReports: endDateOfReports,
+				   freq: freq
+				};	
+		$.ajax({
+			url: "http://localhost:8000/generateCustomReports",
+			type: "POST",
+			contentType: 'application/json',
+			data: JSON.stringify(data),
+			success: function(response){
+				console.log(response);
+			}
+		});
+	}));	
+	
+</script>

@@ -13,4 +13,6 @@ var removeOldSalesErrs = function () {
     db.smtPrimarySalesErr.remove({'audit:createdAt': {$lt: yesterdayDate}})
 }
 
-removeOldSalesErrs();
+module.exports = {
+	removeOldSalesErrs: removeOldSalesErrs
+}

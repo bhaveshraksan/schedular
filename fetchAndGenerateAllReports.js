@@ -12,7 +12,7 @@ var db = mongo(mongoUrl, ["smtCompanies","smtCompaniesDivison","smtCompaniesUser
     "smtReportsData"]);
 
 
-var featchAllReports = function(){
+var fetchAndGenerateAllReports = function(){
     db.smtCompaniesDivison.find({"isActive":true}, function(err, companyDivs){
         var allDivs  = [];
         allDivs = _.map(companyDivs,function(divRec){
@@ -167,7 +167,6 @@ function generateReportsEnterForUser(current, reportName, reportCode, type, leve
                                         autoApprovedByManager: autoApprovedByManager
                                     });
                                     db.smtReportDetails.insert(reportObj, function(err, reportInsertedDetailsId){
-                                        console.log(reportInsertedDetailsId);
                                         reportsGenerated.push(reportInsertedDetailsId);
                                         if (company && company.basicInfo && company.basicInfo.countryId) {
                                             var notificationObj = {};
@@ -413,8 +412,9 @@ function getNextSequence(name) {
         return ret.seq;     
     });
 }
-
-featchAllReports()
+module.exports = {
+    fetchAndGenerateAllReports: fetchAndGenerateAllReports
+};
 
 // var promise1 = new Promise(function (resolve, reject) {
 //     resolve(db['smtCompaniesDivison'].find({"isActive": true}));//1

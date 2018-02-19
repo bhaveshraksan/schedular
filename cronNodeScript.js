@@ -1,43 +1,35 @@
 var cron = require('node-cron');
 var schedule = require('node-schedule');
 //
-//var sendEventNotification = require("../app/controllers/minuteScripts/sendEventNotification");
+var sendEvent = require("./sendEventNotification");
+var fetchGenerate = require('./fetchAndGenerateAllReports');
+var autoSubmit = require('./autoSubmitReports');
+var sendNotify = require('./sendNotificationToFillForm');
+var workWeekAllow = require('./workForTheWeeklyAllowance');
+var workMonthAllow = require('./workForTheMonthlyAllowance');
+var sendNotifyForBirthAnni = require('./sendAnniversaryAndBirthDayNotification');
+var removeOldSales = require('./removeOldSalesErrs');
 //exceute every 1 min
 var minuteJob = function(){
     schedule.scheduleJob("*/1 * * * *", function() {
-        var shell = require("./child_helper");
-        var commandList = [
-            "node fetchAndGenerateAllReports.js",
-            "node autoSubmitReports.js",
-            "node sendNotificationToFillForm.js",
-            "node sendEventNotification.js"
-            //"node sendEmailToManagers.js",
-        ];
-        
-        shell.series(commandList , function(err){
-           console.log('executed 1 commands in a row'); 
-            console.log('done');
-        });
+        sendEvent.sendEventNotification();
+        //fetchGenerate.fetchAndGenerateAllReports();
+        //autoSubmit.autoSubmitReports();
+        //sendNotify.sendNotificationToFillForm();
     });
 }
-var dayTimeJob = function(){
-    var rule = new schedule.RecurrenceRule();
-    rule.dayOfWeek = [0, new schedule.Range(1, 6)];
-    rule.hour = 11;
-    rule.minute = 37;
-    schedule.scheduleJob(rule, function(){
-        var shell = require("./child_helper");
-        var commandList = [
-            "node workForTheWeeklyAllowance.js",
-            "node workForTheMonthlyAllowance.js",
-            "node sendAnniversaryAndBirthDayNotification.js",
-            "node removeOldSalesErrs"
-        ];
-        shell.series(commandList , function(err){
-            console.log('executed 1 commands in a row'); 
-            console.log('done');
-        });
-    });
-}
+//execute every dat at 12:05 AM
+// var dayTimeJob = function(){
+//     var rule = new schedule.RecurrenceRule();
+//     rule.dayOfWeek = [0, new schedule.Range(1, 6)];
+//     rule.hour = 00;
+//     rule.minute = 05;
+//     schedule.scheduleJob(rule, function(){
+//         workWeekAllow.workForTheWeeklyAllowance();
+//         workMonthAllow.workForTheMonthlyAllowance();
+//         sendNotifyForBirthAnni.sendAnniversaryAndBirthDayNotification();
+//         removeOldSales.removeOldSalesErrs();
+//     });
+// }
 minuteJob();
-dayTimeJob();   
+//dayTimeJob();   

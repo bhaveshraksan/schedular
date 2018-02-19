@@ -11,7 +11,7 @@ var db = mongo(mongoUrl,["smtCompaniesCustomer"]);
     var current = moment().format("MM-DD");
     var currentTime = moment().format("HH:mm");
     db.smtCompaniesCustomer.find({}, function(err, customers){
-        if (customers && customers.length > 0) {
+         if (customers && customers.length > 0) {
             _.each(customers, function (cust) {
                 if (cust && cust.personalDetails && (cust.personalDetails.dateOfBirth || cust.personalDetails.anniversayDate)) {
                     try{
@@ -21,7 +21,7 @@ var db = mongo(mongoUrl,["smtCompaniesCustomer"]);
                         console.log("while featching dateOfBirth or anniversaryDate ");
                         console.log(e);
                     }
-                    if ((current == dateOfBirth || current == anniversaryDate)) {
+                    //if ((current == dateOfBirth || current == anniversaryDate)) {
                         var jobDetails = cust.jobDetails || cust.hospitalBusinessDetails || [];
                         var stationIds = _.map(jobDetails, function (obj) {
                             if (obj.stationId) {
@@ -31,17 +31,21 @@ var db = mongo(mongoUrl,["smtCompaniesCustomer"]);
                                 return obj.headquarterId;
                             }
                         }) || [];
-                        var mrIds = commonjs.getCustomerMrIds(stationIds);
-                        var isAnniversary = true;
-                        if (current == dateOfBirth) {
-                            isAnniversary = false;
-                        }
-                        commonjs.SendNotificationForBirthdayAnn(mrIds, isAnniversary, cust.personalDetails.name);
-                    }   
+                        commonjs.getCustomerMrIds(stationIds, function(mrIds){
+                            var isAnniversary = true;
+                            if (current == dateOfBirth) {
+                                isAnniversary = false;
+                            }
+                            commonjs.SendNotificationForBirthdayAnn(mrIds, isAnniversary, cust.personalDetails.name, function(result){
+                                console.log(result);
+                            });    
+                        });
+                    //}
                 }
             }); 
         }   
     }); 
 };        
-
-sendAnniversaryAndBirthDayNotification();
+module.exports = {
+    sendAnniversaryAndBirthDayNotification: sendAnniversaryAndBirthDayNotification
+}
