@@ -79,7 +79,6 @@ exports.generateCustomReports = (req, res) => {
         }	
 	}
 };
-
 function checkIsExistInArray(checkWith, checkIn) {
     var isExist = false;
     if (checkWith != '' && checkWith != undefined && checkIn != '' && checkIn != undefined && checkIn.length > 0) {

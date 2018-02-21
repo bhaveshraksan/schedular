@@ -1,8 +1,8 @@
-var conFig = require("./config.js");
+var conFig = require("../../config.js");
 var mongo = require('then-mongo');
 var _ = require('underscore');
 var moment =  require('moment') ;
-var utils = require('./commonJS/saveNotification');
+var utils = require('../../commonJS/saveNotification');
 
 var mongoUrl = conFig.mongourl;//"mongodb://localhost:27017/smart_qa"; //config.mongourl;
 var db = mongo(mongoUrl,["smtEventList","smtNotifications","smtCompaniesDivison","users"]);

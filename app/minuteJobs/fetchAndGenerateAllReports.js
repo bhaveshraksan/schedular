@@ -1,8 +1,9 @@
-var conFig = require("./config.js");
+var conFig = require("../../config.js");
 var mongo = require('then-mongo');
 var _ = require('underscore');
 var moment =  require('moment') ;
-var constant = require('./constants.js');
+var utils = require('../../commonJS/saveNotification');
+var constant = require('../../constants.js');
 // import moment from 'moment';
 var mongoUrl = conFig.mongourl;//"mongodb://localhost:27017/smart_qa"; //config.mongourl;
 var db = mongo(mongoUrl, ["smtCompanies","smtCompaniesDivison","smtCompaniesUsers","smtCompanyLocations","users",
@@ -56,15 +57,6 @@ function getReportGenerationDate(autoGenerate) {
         var today = new Date();
         var lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         triggerTime = moment(lastDayOfMonth, "h:mm A", true).format();
-        // bellow is correct as per the UX but now generate at the end of the month only
-        // var todayDay = moment().format("ddd").toUpperCase();
-        // if (autoGenerate.day != todayDay) {
-        //     return false;
-        // }
-        // if (autoGenerate.week != getThisWeek()) {
-        //     return false;
-        // }
-        // triggerTime = moment(autoGenerate.time, "h:mm A", true).format();
     }
     else return false;
     return triggerTime;

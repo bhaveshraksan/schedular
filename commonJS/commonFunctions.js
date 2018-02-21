@@ -4,13 +4,16 @@ var _ = require('underscore');
 var moment =  require('moment');
 var bson = require('bson');
 var util = require('./saveNotification');
+var constant = require('../constants.js');
 // var MJ = require('mongo-fast-join'),
 //     mongoJoin = new MJ();
 var mongoUrl = conFig.mongourl;//"mongodb://localhost:27017/smart_qa"; //config.mongourl;
 var db = mongo(mongoUrl,["smtCompanies","smtAllowanceTypesAlias","smtCustomerAppointments",
                          "smtCustomerAppointmentsMeetings","smtCompaniesUsers",
                          "smtCompanyLocations","smtMrDayReports","users",
-                         "smtReportsGeneration"]);
+                         "smtReportsGeneration","smtReportsTemplateAlias","smtReportDetails","smtNotifications",
+                         "smtCompanyDepartments","smtCompanySubDepartments","serialNumbers",
+                         "smtReportTransactions"]);
 
 
 
@@ -252,9 +255,298 @@ function generateReportsEnterForUser(current, reportName, reportCode, type, leve
             companyId: companyId,
             companyDivisionId: companyDivisionId,
             "audit.createdAt": {$gte: gte, $lte: lte}
-        }, function(err, alreadyGenerated){
-            console.log(alreadyGenerated);
-        }); 
+    }, function(err, alreadyGenerated){
+        var userExistingArray = _.map(alreadyGenerated, function (data) {
+            return data.userIds
+        });
+        userExistingArray = _.flatten(userExistingArray, true);
+        db.users.find({_id: {$nin: userExistingArray},
+                "profile.companyId": companyId,
+                "profile.companyDivisionId": companyDivisionId,
+                "roles.company-group": {$in: [levelCode]},
+                "isActive": true
+            }, function(err, users){
+            var reportsGenerated = [];
+            db.smtReportsTemplateAlias.findOne({
+                "status": "ASSIGNED",
+                "reportCode": reportCode,
+                "hierarchyCode": levelCode,
+                companyId: companyId,
+                companyDivisionId: companyDivisionId
+            }, function(err, smtReportsTemplateAlias){
+                var userIds = _.map(users, function (u) {
+                    getLocationParentLocations(u, approvedByLevels, true, function(approveBy){
+                        getLocationParentLocations(u, viewedByLevel, false, function(viewedBy){
+                            var email = u.emails[0].address;
+                            db.smtCompanies.findOne({_id: companyId}, function(err, company){
+                                var autoSubmitByUser;
+                                var autoApprovedByManager;
+                                if (smtReportsTemplateAlias) {
+                                    autoSubmitByUser = smtReportsTemplateAlias.autoSubmitByUser;
+                                    autoApprovedByManager = smtReportsTemplateAlias.autoApprovedByManager;
+                                }
+                                    /**
+                                 * If no user to approve the report,then default 'status' is 'APPROVED' and 'userId' is 'SYSTEM'.
+                                 */
+                                var reportObj = {};
+                                if(approveBy && approveBy.length>0){
+                                    reportObj.status = "DRAFT";
+                                    reportObj.statusAudit = [{
+                                        userId: u._id,
+                                        username: email,
+                                        status: 'DRAFT'
+                                    }];
+                                }else{
+                                    reportObj.status = "APPROVED";
+                                    reportObj.statusAudit = [{
+                                        userId: "SYSTEM",
+                                        username: email,
+                                        status: 'APPROVED'
+                                    }];
+                                }
+                                db.smtReportDetails.findOne({createdOn: {$gte: gte, $lte: lte},
+                                        reportCode: reportCode,
+                                        rangeType: type,
+                                        reportId: reportId,
+                                        companyId: companyId,
+                                        companyDivisionId: companyDivisionId,
+                                        hierarchyId: levelCode,
+                                        userId: u._id
+                                }, function(err, isReportExist){
+                                    if (!isReportExist) {
+                                        reportObj = _.extend(reportObj,{
+                                            createdOn: current,
+                                            approveBy: approveBy,
+                                            viewedBy: viewedBy,
+                                            displayName: reportName,
+                                            reportCode: reportCode,
+                                            rangeType: type,
+                                            reportId: reportId,
+                                            companyId: companyId,
+                                            companyDivisionId: companyDivisionId,
+                                            hierarchyId: levelCode,
+                                            userId: u._id,
+                                            autoSubmitByUser: autoSubmitByUser,
+                                            autoApprovedByManager: autoApprovedByManager
+                                        });
+                                        db.smtReportDetails.insert(reportObj, function(err, reportInsertedDetailsId){
+                                            reportsGenerated.push(reportInsertedDetailsId);
+                                            if (company && company.basicInfo && company.basicInfo.countryId) {
+                                                var notificationObj = {};
+                                                notificationObj.companyId = companyId;
+                                                notificationObj.companyDivisionId = companyDivisionId;
+                                                notificationObj.countryId = company.basicInfo.countryId;
+                                                notificationObj.from = "SYSTEM";
+                                                notificationObj.to = u._id;
+                                                notificationObj.isActive = true;
+                                                notificationObj.payLoad = {
+                                                    "REPORT": reportCode,
+                                                    "FREQUENCY": type,
+                                                    "CREATEDAT": moment(new Date(current)).format("DD MMM")
+                                                };
+                                                var settingObj = _.findWhere(constant.smtNotificationMessage, {code: "SYSTEM-REPORT-GENERATED"});
+                                                if (settingObj) {
+                                                    notificationObj.type = settingObj.code;
+                                                }
+                                                db.smtNotifications.insert(notificationObj, function(err, doc){
+                                                    if(err == null){
+                                                    }
+                                                });
+                                            }
+                                            getDepartmentDocumentByUserId(u._id, function(department){
+                                                getSubDepartmentDocumentByUserId(u._id, function(subDep){
+                                                    getSelectedUserRole(u._id, function(uid){
+                                                        uniqueIdGenService(companyId, companyDivisionId, function(uniqId){
+                                                            db.smtReportTransactions.insert({
+                                                                companyId: companyId,
+                                                                companyDivisionId: companyDivisionId,
+                                                                departmentId: department._id,
+                                                                subDepartmentId: subDep._id,
+                                                                reportId: reportId,
+                                                                reportDetailsId: reportInsertedDetailsId,
+                                                                reportCode: reportCode,
+                                                                fromUserId: u._id,
+                                                                fromUserIdRole: uid,
+                                                                toUserDetails: approveBy,
+                                                                requestId: uniqId
+                                                            }, function(err, doc){
+                                                                if (err) {
+                                                                    console.log(err);
+                                                                }else{
+                                                                    updateReportsData({"_id":reportInsertedDetailsId._id},"SYSTEM","REPORT_GENERATION", function(result){
+
+                                                                    });
+                                                                }
+                                                            });    
+                                                        });
+                                                        
+                                                    });
+                                                    
+                                                });
+                                            });
+                                        });    
+                                    }else {
+                                        console.log("Report already exist for- " + "user :" + u._id + ", report: " + reportCode + ", date: " + current + "; ID is:" + isReportExist._id);
+                                    }    
+                                });    
+                            });    
+                        });
+                    });
+                });
+            });  
+        });        
+    }); 
+}
+
+function getLocationParentLocations(user, levels, isApprovals, callback){
+    var parentId = "";
+    var parentLocations = [];
+    if (user && user.profile && user.profile.locationId) {
+        parentId = user.profile.locationId;
+        db.smtCompanyLocations.findOne({_id: parentId, isActive: true}, function(err, parentOne){
+            if (parentOne) {
+                _.each(parentOne.parentLocations, function (locationObj) {
+                    let obj = {
+                        hierarchyCode: locationObj.code,
+                        locationId: locationObj.locationId,
+                        status: 'DRAFT',
+                        approveDate: ''
+                    };
+                    _.each(levels, function (l) {
+                        if (l === obj.hierarchyCode) {
+                            userExists(obj.locationId, function(isExists){
+                                if(isExists){
+                                    parentLocations.push(obj);
+                                    callback(parentLocations);
+                                }
+                            });
+                        }
+                    });
+                });
+                if ((isApprovals && parentOne && parentOne.parentLocations && parentOne.parentLocations.length > 0) && (!parentLocations || parentLocations.length === 0) && levels.length > 0) {
+                    let i = parentOne.parentLocations.length - 1;
+                    let locations = parentOne.parentLocatiapprovedByLevelsons;
+                    if (locations && locations.length) {
+                        locations = _.sortBy(locations, 'code');
+                        while (i && parentLocations.length === 0) {
+                            let obj = {
+                                hierarchyCode: locations[i].code,
+                                locationId: locations[i].locationId,
+                                status: 'DRAFT',
+                                approveDate: ''
+                            };
+                            userExists(obj.locationId, function(isExists){
+                                if(isExists){
+                                    parentLocations.push(obj);
+                                    callback(parentLocations);
+                                }
+                            });
+                            i--;
+                        }
+                    }
+                }
+            }    
+        });
+    }
+
+}
+
+function userExists(locationId, callback){
+    db.smtCompaniesUsers.findOne({
+        locationId: locationId,
+        isActive: true,
+        'companyAssignedUserInfo.isActive': true
+    }, function(err, user){
+        if (!user || !user.companyAssignedUserInfo || user.companyAssignedUserInfo.length === 0)
+        callback(false);
+        else callback(true);
+    });
+}
+
+function getDepartmentDocumentByUserId(userId, callback) {
+    db.users.findOne({_id: userId}, function(err, user){
+        let deptDoc = user && user.profile && user.profile.userDepartments ? _.findWhere(user.profile.userDepartments, {isActive: true}) : null;
+        getDepartmentDocumentById(deptDoc.departmentId, function(getDepartmentDocumentById){
+            callback(deptDoc && deptDoc.departmentId ? getDepartmentDocumentById : null);
+        });
+    })
+};
+
+function getSubDepartmentDocumentByUserId(userId, callback) {
+    db.users.findOne({_id: userId}, function(err, user){
+        let deptDoc = user && user.profile && user.profile.userDepartments ? _.findWhere(user.profile.userDepartments, {isActive: true}) : null;
+        getSubDepartmentDocumentById(deptDoc.subDepartmentId, function(getSubDepartmentDocumentById){
+            callback(deptDoc && deptDoc.subDepartmentId ? getSubDepartmentDocumentById : null);
+        });
+        
+    });    
+};
+
+function getDepartmentDocumentById(deptId, callback) {
+    db.smtCompanyDepartments.findOne({_id: deptId}, function(err, data){
+        callback(data);
+    });
+};
+
+function getSubDepartmentDocumentById(subDeptId, callback) {
+    db.smtCompanySubDepartments.findOne({_id: subDeptId}, function(err, data){
+        callback(data);
+    });
+};
+function getSelectedUserRole(userId, callback) {
+    db.users.findOne({_id: userId}, function(err, userData){
+        if (userData && userData.roles) {
+            if (userData.roles["company-group"]) {
+                callback(userData.roles["company-group"][0]);
+            }
+        }
+        else callback("");
+    });
+    
+};
+
+function updateReportsData(reportsUpdateQuery,userId, cronRecId){
+    var updatedReports = [];
+    var updateRepsQuery = {};
+
+    if(reportsUpdateQuery){
+       updateRepsQuery = _.extend({"updateCronId": {$nin:[cronRecId]}},reportsUpdateQuery);
+    }
+    db.smtReportDetails.find(updateRepsQuery).sort({"audit.createdAt":-1}, function(err, reportsDt){
+        _.each(reportsDt,(reportRec)=>{
+            if(reportRec && reportRec.reportCode && reportRec.rangeType){
+                var reportTabName = _.findWhere(constant.SmtReportsTabNames, {reportCode: reportRec.reportCode}).tabName
+                 var data = {
+                     userId: reportRec.userId,
+                     reportCode: reportRec.reportCode,
+                     tabName: reportTabName,
+                     date: reportRec.audit.createdAt,
+                     rangeType: reportRec.rangeType,
+                     dateRangeFlag: false,
+                     dateRange: reportRec.audit.createdAt,
+                     recordId: reportRec._id,
+                     requestType : "REPORTS-DATA"
+                };
+                var repResult = new SmtReportsProcessor(data).processReportCode();
+            }    
+        });    
+    });
+}
+
+function uniqueIdGenService(companyId, divisionId, callback){
+    var id = "departmentCode"+"_"+companyId+"_"+divisionId;
+    db.serialNumbers.findOne({_id: id}, function(err, ret){
+        ret.seq = ret.seq + 1;
+        db.serialNumbers.update({ _id: id },{$set:{seq:ret.seq}}, function(err, doc){});
+        pad(ret.seq, 6, function(u_uid){
+            callback("SMT-"+"REPORT"+"-" + u_uid);
+        });
+    });    
+}
+
+function pad(num, size, callback) {
+    var s = "000000000" + num;
+    callback(s.substr(s.length-size));
 }
 
 module.exports = {
