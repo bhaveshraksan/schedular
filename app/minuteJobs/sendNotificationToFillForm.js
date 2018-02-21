@@ -13,14 +13,16 @@ var sendNotificationToFillForm = function(){
 		_.each(templateAlias, function (tempAl) {
 			db.smtFormTemplateCompanyAlias.findOne({_id: tempAl.formId}, function(err, companyAlias){
 				if (tempAl && tempAl.autoApprovedByManager) {
-	                approveByManager(tempAl._id);
+	                approveByManager(tempAl._id, function(result){
+
+	                });
 	            }
 			});
 		});	
 	});     	
 }
 
-function approveByManager(tempAlId){
+function approveByManager(tempAlId, callback){
 	db.smtFormsTemplateAlias.findOne({_id: tempAlId}, function(err, templateAlias){
 		var companyId = templateAlias.companyId;
         var companyDivisionId = templateAlias.companyDivisionId;
@@ -31,9 +33,9 @@ function approveByManager(tempAlId){
         var reportTime = moment(time, "h:mm A", true).toDate();
         var expected = moment(reportTime).format("MM-DD-YYYY h:mm A");
         var current = moment().format("MM-DD-YYYY h:mm A");
-        if (expected === current && templateAlias.autoApprovedByManager.value === true) {
+        // if (expected === current && templateAlias.autoApprovedByManager.value === true) {
         	var formDate = moment().add((-1 * days), "days").toDate();
-            var firstDay = moment(formDate).startOf("day").toDate();
+        	var firstDay = moment(formDate).startOf("day").toDate();
             var lastDay = moment(formDate).endOf("day").toDate();
             db.smtUserFormsAlias.find({
             	companyId: companyId,
@@ -47,49 +49,59 @@ function approveByManager(tempAlId){
                     $lt: lastDay
                 }
             }, function(err, existingForm){
-            	//console.log(existingForm);
             	_.each(existingForm, function (formAlias) {
             		var formAliasId = formAlias._id;
             		if (formAlias && formAlias.approveBy) {
-            			_.each(formAlias.approveBy, function (obj) {
-	                        if (obj.status === "GENERATED") {
-	                            return obj.status = "APPROVED", obj.approveDate = new Date();
-	                        }
-	                    });
-	                    var statusAudit = {};
-	                    statusAudit.userId = "SYSTEM";
-	                    statusAudit.status = "APPROVED";
-	                    statusAudit.username = "SYSTEM";
-	                    statusAudit.createdOn = new Date();
-	                    formAlias.statusAudit.push(statusAudit);
-	                    db.smtCompanies.findOne({_id: formAlias.companyId}, function(err, company){
-	                    	var notificationObj = {};
-		                    notificationObj.companyId = formAlias.companyId;
-		                    notificationObj.companyDivisionId = formAlias.companyDivisionId;
-		                    notificationObj.countryId = company.basicInfo.countryId;
-		                    notificationObj.type = "FORM-APPROVED";
-		                    db.smtFormsTemplateAlias.findOne({_id: formAlias.formTypeId}, function(err, formTemplate){
-		                    	notificationObj.payLoad = {
-			                        "FORMNAME": formTemplate.formName,
-			                        "CREATEDAT": moment(new Date()).format("DD MMM"),
-			                        "CREATEDDATE": moment(formAlias.audit.createdAt).toDate(),
-			                        "VERSION": "1.1"
-			                    };
-			                    notificationObj.isActive = true;
-			                    notificationObj.baseId = formAliasId;
-			                    var from = "SYSTEM";
-			                    var to = [formAlias.userId];
-			                    utils.saveNotification(notificationObj, from, to);
+            			addObjectStatus(formAlias.approveBy, function(obj){
+            				var statusAudit = {};
+            				statusAudit.userId = "SYSTEM";
+            				statusAudit.status = "APPROVED";
+            				statusAudit.username = "SYSTEM";
+            				statusAudit.createdOn = new Date();
+            				formAlias.statusAudit.push(statusAudit);
+		                    db.smtCompanies.findOne({_id: formAlias.companyId}, function(err, company){
+		                    	var notificationObj = {};
+			                    notificationObj.companyId = formAlias.companyId;
+			                    notificationObj.companyDivisionId = formAlias.companyDivisionId;
+			                    notificationObj.countryId = company.basicInfo.countryId;
+			                    notificationObj.type = "FORM-APPROVED";
+			                    db.smtFormsTemplateAlias.findOne({_id: formAlias.formTypeId}, function(err, formTemplate){
+			                    	notificationObj.payLoad = {
+				                        "FORMNAME": formTemplate.formName,
+				                        "CREATEDAT": moment(new Date()).format("DD MMM"),
+				                        "CREATEDDATE": moment(formAlias.audit.createdAt).toDate(),
+				                        "VERSION": "1.1"
+				                    };
+				                    notificationObj.isActive = true;
+				                    notificationObj.baseId = formAliasId;
+				                    var from = "SYSTEM";
+				                    var to = [formAlias.userId];
+				                    utils.saveNotification(notificationObj, from, to, function(result){
+				                    	console.log(result);
+				                    });
+			                    });
 		                    });
-	                    });
+		                });    
             		} 	
             	});	
-            })
-        }
+            });
+        // }
 	});
 }
+
+function addObjectStatus(arr, callback){
+	_.each(arr, function (obj) {
+        if (obj.status === "GENERATED") {
+        	obj.status = "APPROVED", obj.approveDate = new Date();
+            callback(obj);
+        }
+    });
+}
+
+
 module.exports = {
 	sendNotificationToFillForm: sendNotificationToFillForm
 }
 
+sendNotificationToFillForm();
 

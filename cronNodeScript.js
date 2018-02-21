@@ -13,9 +13,9 @@ var removeOldSales = require('./app/dailyJobs/removeOldSalesErrs');
 var minuteJob = function(){
     schedule.scheduleJob("*/1 * * * *", function() {
         sendEvent.sendEventNotification();
-       //etchGenerate.fetchAndGenerateAllReports();
-        //autoSubmit.autoSubmitReports();
-        //sendNotify.sendNotificationToFillForm();
+        //fetchGenerate.fetchAndGenerateAllReports();
+        autoSubmit.autoSubmitReports();
+        sendNotify.sendNotificationToFillForm();
     });
 }
 //execute every dat at 12:05 AM
