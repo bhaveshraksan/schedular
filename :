@@ -1,0 +1,5 @@
+build -t dockerhub.raksan.in/fieldeagles/fr_schedulers:crongen .
+cd ../../
+docker login dockerhub.raksan.in
+docker push dockerhub.raksan.in/fieldeagles/fr_schedulers:crongen
+
