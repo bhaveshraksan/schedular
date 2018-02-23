@@ -36,8 +36,8 @@ var autoSubmitReports = function(){
 		                        var reportDate = moment().add((-1 * days), "days").toDate();
 		                        var firstDay = moment(reportDate).startOf("day").toDate().getTime();
 		                        var reportDetailDate = moment(report.audit.createdAt).startOf("day").toDate().getTime();
-		                        //if (expected === current && reportDetailDate === firstDay && report && report.approveBy && report.approveBy.length > 0) {
-		                        	//console.log("Auto Approval ReportId", report._id);
+		                        if (expected === current && reportDetailDate === firstDay && report && report.approveBy && report.approveBy.length > 0) {
+		                        	console.log("Auto Approval ReportId", report._id);
 		                        	var statusAudit = {};
 		                            statusAudit.userId = "SYSTEM";
 		                            statusAudit.status = "SUBMITTED";
@@ -105,7 +105,7 @@ var autoSubmitReports = function(){
 			                            	}	
 			                            });	
 		                            });	
-		                        //}
+		                        }
 		                	}	
 		                }
 					});
@@ -365,5 +365,3 @@ function updateUnAttendedAppointment(tripDate,soId, callback){
 module.exports = {
 	autoSubmitReports: autoSubmitReports
 }
-
-autoSubmitReports();

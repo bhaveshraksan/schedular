@@ -20,9 +20,9 @@ var sendEventNotification = function(){
 		    				if (snoozeObj.hour) { //snoozobj as hour
 		    					var eventDate = moment(new Date(obj.startDate).toISOString()).format("DD-MM-YY");
 		    					var eventTime = moment(obj.startTime, "HH:mm").add((snoozeObj.hour * -1), "hours").format("HH:mm");
-		    					//if (eventDate == currentDate && eventTime == currentTime) { //dates are matching
+		    					if (eventDate == currentDate && eventTime == currentTime) { //dates are matching
 		    						notificationUsers.push(snoozeObj.userId);
-		    					//}	
+		    					}	
 		    				}else if (snoozeObj.day) { //snoozobj as day
 		    					var snoozeDate = moment(new Date(obj.startDate).toISOString()).add((snoozeObj.day * -1), "day").format("DD-MM-YY");
 		    					var firstDay = moment(snoozeDate, "DD-MM-YY").startOf('day').toDate();
@@ -30,9 +30,9 @@ var sendEventNotification = function(){
 		    					db.smtNotifications.findOne({to: snoozeObj.userId, type: "EVENT-NOTIFICATION",baseId: obj._id, "audit.createdAt": {$gte: firstDay, $lte: lastDay}}, function(err, data1){
 		    						var alreadyNotificationSnoozed = data1;
 
-		    						//if (snoozeDate == currentDate && !alreadyNotificationSnoozed) {
+		    						if (snoozeDate == currentDate && !alreadyNotificationSnoozed) {
 		    							notificationUsers.push(snoozeObj.userId);
-		    						//}	
+		    						}	
 		    					});
 		    				}	
 		    			});

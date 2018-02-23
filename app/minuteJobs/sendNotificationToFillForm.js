@@ -2,6 +2,7 @@ var conFig = require("../../config.js");
 var mongo = require('then-mongo');
 var _ = require('underscore');
 var moment =  require('moment') ;
+var Q = require('q');
 var utils = require('../../commonJS/saveNotification');
 
 var mongoUrl = conFig.mongourl;//"mongodb://localhost:27017/smart_qa"; //config.mongourl;
@@ -14,8 +15,8 @@ var sendNotificationToFillForm = function(){
 			db.smtFormTemplateCompanyAlias.findOne({_id: tempAl.formId}, function(err, companyAlias){
 				if (tempAl && tempAl.autoApprovedByManager) {
 	                approveByManager(tempAl._id, function(result){
-
-	                });
+    	               console.log(result);
+                    });
 	            }
 			});
 		});	
@@ -33,7 +34,7 @@ function approveByManager(tempAlId, callback){
         var reportTime = moment(time, "h:mm A", true).toDate();
         var expected = moment(reportTime).format("MM-DD-YYYY h:mm A");
         var current = moment().format("MM-DD-YYYY h:mm A");
-        // if (expected === current && templateAlias.autoApprovedByManager.value === true) {
+        if (expected === current && templateAlias.autoApprovedByManager.value === true) {
         	var formDate = moment().add((-1 * days), "days").toDate();
         	var firstDay = moment(formDate).startOf("day").toDate();
             var lastDay = moment(formDate).endOf("day").toDate();
@@ -77,7 +78,7 @@ function approveByManager(tempAlId, callback){
 				                    var from = "SYSTEM";
 				                    var to = [formAlias.userId];
 				                    utils.saveNotification(notificationObj, from, to, function(result){
-				                    	console.log(result);
+				                    	callback(result);
 				                    });
 			                    });
 		                    });
@@ -85,7 +86,7 @@ function approveByManager(tempAlId, callback){
             		} 	
             	});	
             });
-        // }
+        }
 	});
 }
 
@@ -102,6 +103,4 @@ function addObjectStatus(arr, callback){
 module.exports = {
 	sendNotificationToFillForm: sendNotificationToFillForm
 }
-
-sendNotificationToFillForm();
 

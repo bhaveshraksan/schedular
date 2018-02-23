@@ -17,10 +17,10 @@ var db = mongo(mongoUrl,["smtCompaniesCustomer"]);
                         var dateOfBirth = cust.personalDetails.dateOfBirth ? moment(cust.personalDetails.dateOfBirth).format("MM-DD") : "";
                         var anniversaryDate = cust.personalDetails.anniversaryDate ? moment(cust.personalDetails.anniversaryDate).format("MM-DD") : "";
                     }catch(e){
-                        console.log("while featching dateOfBirth or anniversaryDate ");
+                        //console.log("while featching dateOfBirth or anniversaryDate ");
                         console.log(e);
                     }
-                    //if ((current == dateOfBirth || current == anniversaryDate)) {
+                    if ((current == dateOfBirth || current == anniversaryDate)) {
                         var jobDetails = cust.jobDetails || cust.hospitalBusinessDetails || [];
                         var stationIds = _.map(jobDetails, function (obj) {
                             if (obj.stationId) {
@@ -39,7 +39,7 @@ var db = mongo(mongoUrl,["smtCompaniesCustomer"]);
                                 console.log(result);
                             });    
                         });
-                    //}
+                    }
                 }
             }); 
         }   
